@@ -1,0 +1,73 @@
+sudo crictl info - проверить что у вас все нормально с containerd, может ругаться на cni, это нормально
+
+kubeadm init => подготовка, проверка условий и загрузка core container images => certs - генерация сертификата, для apiserver,etcd,proxy => kubeconfig - генерация файлов конфигурации для основных Kubernetes services => kubelet-start => создание статических манифестов для подов, старт apiserver, controller manager, scheduler => статический под манифесты созданы и запущены для etcd => upload-config ConfigMaps созданы для конфигурации кластера и kubelet config => upload-certs загружает сертификаты в /etc/kubernetes/pki => mark-control-plane - помечает ноду как control => bootstrap-token - генерирует токен для использования на других нодах => kubelet-finalize - подбивает настройки =>add-on -устанавливает coredns and kube-proxy
+
+kubeadm reset - сборос в случае не удачной инициализации кластера
+
+kubeadm join 192.168.31.125:6443 --token px3tsp.fwogoje3q0uoe7uy \
+        --discovery-token-ca-cert-hash sha256:b8f6c1f1342553f44ac91923f0e3717ff5de8614d022aa77204f5a3137684299
+
+kubeadm join 192.168.31.125:6443 --token lsy0es.o9a3p4t3aukosaj7 --discovery-token-ca-cert-hash sha256:b8f6c1f1342553f44ac91923f0e3717ff5de8614d022aa77204f5a3137684299
+
+kubectl get all - проверить поднятие кластера
+
+kubectl config view - посмотреть конфигуацию кластера
+
+#Переносим конфиг админа в каталог нашего юзера
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+--
+
+#Коммуникация
+
+Между узлами - физическая сете
+Извне до сервиса - сущности сервиса кубера
+Сервис до пода - сервис кубера
+Pod to Pod - сетевой плагин
+
+kubectl get pods -n kube-system - посмотреть системные поды
+
+kubectl describe -n kube-system pod coredns-55cb58b774-pdqqg - посмотреть почему core-dns поды не запускаются
+
+kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml - применить в качестве CNI calico
+
+sudo kubeadm token create --print-join-command - создать токен для присоединения воркеров
+
+#Trublehooting
+В моем случае я создал виртуалки на centos, и забыл им сменил hostname(localhost), из-за этого при попытке подключения к кластеру, присоединению к кластеру нарушилось.
+
+У каждой ноды должен быть уникальный hostname. Также при попытках найти источники для kubetools для CentoOs 10, у меня оказались утилиты не только в usr/bin, но и в local.
+
+Обнаружить проблему удалось с использованием:
+
+systemctl status containerd - посмотреть статус containerd, а также какие бинарники процессов
+
+journalctl -u kubelet -f - в журнале kubelet были множественные error, указывающие что якобы файлов нет
+
+# Помогло
+
+sudo systemctl restart containerd
+sudo kubeadm reset -f
+sudo systemctl stop kubelet
+sudo rm -rf /etc/kubernetes /var/lib/kubelet /var/lib/cni /etc/cni
+
+#Указание нужного сокета
+cat <<EOF > /etc/crictl.yaml
+runtime-endpoint: unix:///run/containerd/containerd.sock
+EOF
+
+И опять же обнаружил интересный момент, что при разрыве соединения с кластером. Кластер все еще считает тебя своей нодой и держит поды cni. Поэтому нужно удалить ноду вручную. Это первый урок, возможно есть способ удалить информацию о кластере и ноде одновременно с воркера и мастера соответственно. 
+
+
+#Config file
+
+sudo kubeadm config print init-defaults > config.yaml
+
+sudo kubeadm init --config config.yaml
+
+
+
+kubectl create deploy testdeploy --image=nginx --replicas=3 - проверяем что мы правильно настроили кластер
+
+
