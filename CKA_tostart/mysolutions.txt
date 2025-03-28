@@ -1,0 +1,50 @@
+# Создание кластера
+
+В /etc/sysctl.conf
+
+
+# IPv4 forwarding
+net.ipv4.ip_forward = 1
+
+# IPv6 forwarding
+net.ipv6.conf.all.forwarding = 1
+
+# iptables rules
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+
+# В моем случае не был загружен модуль ядра который отвечает
+
+modprobe br_netfilter - загружаем
+
+lsmod | grep br_netfilter - смотрим
+
+echo br_netfilter > /etc/modules-load.d/br_netfilter.conf - добавляем в автозагрузку
+
+sysctl -p - применяем
+
+# Смотрим после перезагрузки
+sysctl net.ipv4.ip_forward
+sysctl net.ipv6.conf.all.forwarding
+sysctl net.bridge.bridge-nf-call-iptables
+sysctl net.bridge.bridge-nf-call-ip6tables
+
+# Также я дополнительно поменял сетевой драйвер в VMware на vmxnet3
+
+# Если вы работаете на Centos то в журнале ядра у вас появятся варнинги, это из-за поддержки старых драйверов, которые требуются для kubernetes
+
+--
+
+# Update
+
+Нужно создать два воркера и настроить их аналогичным образом
+
+После применения слетает eth интерфейс
+
+nmcli con add type ethernet ifname ens160 con-name ens160-static ipv4.addresses 192.168.31.127/24 ipv4.gateway 192.168.31.1 ipv4.dns 8.8.8.8 ipv4.method manual
+
+
+
+# Update 2
+
+Чтобы избежать ручной настройки, просто пользуемся скриптами setup-kubetools.sh setup-container.sh
