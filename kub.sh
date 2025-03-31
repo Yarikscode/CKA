@@ -43,6 +43,12 @@ EOF
 # Установка компонентов Kubernetes
 dnf install -y kubelet kubeadm kubectl cri-tools --disableexcludes=kubernetes
 
+#Указываем enpoint для CRI
+cat <<EOF > /etc/crictl.yaml
+runtime-endpoint: unix:///run/containerd/containerd.sock
+EOF
+
+
 # Включаем и запускаем kubelet
 systemctl daemon-reexec
 systemctl enable --now kubelet
