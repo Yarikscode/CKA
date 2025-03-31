@@ -41,10 +41,6 @@ sysctl --system
 mkdir -p /etc/containerd
 containerd config default > /etc/containerd/config.toml
 
-cat <<EOF > /etc/crictl.yaml
-runtime-endpoint: unix:///run/containerd/containerd.sock
-EOF
-
 # Включаем поддержку systemd cgroup
 sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 
