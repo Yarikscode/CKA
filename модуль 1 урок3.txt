@@ -1,0 +1,82 @@
+#Новый урок
+
+kubectl describe node control | less - посмотреть описание мастер ноды
+
+sudo ls -lrt /var/log - посмотреть самые свежие записи в лог
+
+sudo systemctl status kubelet - посмотреть статус кубелет
+
+sudo journalctl -u kubelet - посмотреть логи кубелет, чаще все проблему можно найти по нему
+
+crictl - информация о запущенных контейнерах
+
+crictl info - посмотреть информацию о CRI
+
+crictl ps - посмотреть запущенные контейнеры
+
+crictl pods - посмотреть информацию о запущенных подах
+
+crictl inspect 2316 - посмотреть json на котором создан контейнер
+
+crictl images - посмотреть images
+
+crictl --help - посмотреть все возможности crictl
+
+#Запуск статических подов
+
+Кубер может автоматически запускать поды из /etc/kubernetes/manifests
+
+systemd стартует kubelet, а kubelet стартует поды
+
+Никогда не делайте это на control ноде
+
+Плюсом запуска подов из папки является то, что это работает даже когда API сервер умер
+
+
+kubectl run staticpod --image=nginx --dry-run=client -o yaml staticpod.yaml - создаем манифест
+
+Далее переносим его в /etc/kubernetes/manifests
+
+kubectl get pods -o wide - проверяем его запуск
+
+sudo ls /etc/kubernetes/manifests/ - посмотреть манифесты на control ноде
+
+kubectl cordon - запретить запускать поды на данной ноде
+
+kubectl drain - удалить все текущие поды и запретить запускать новые на данной ноде
+
+kubectl drain --ignore-daemonsets - исключаем демон сеты из этого правила
+
+kubectl drain --delete-emtydir-data - очистить хранилище emptydir
+
+kubectl uncordon - вернуть в нормальное состояние
+
+kubectl cordon worker2
+
+kubectl get nodes - проверить применение cordon
+
+kubectl uncordon worker2 - возвращаем нормальное состояние
+
+kubectl cordon worker2
+
+kubectl create deploy testing --image=nginx --replicas=10
+
+kubectl get pods -o wide - наблюдаем, что все поды на worker1
+
+kubectl uncordon worker2
+
+kubectl get pods -o wide - поды остались на воркере 2
+
+#Отключаем kubelet на воркере 1
+
+sudo systemctl stop kubelet - остановим кубелет
+
+kubectl describe nodes worker1
+
+ps aux | grep kubelet - смотрим что процессов нет
+
+ps aux | grep containerd - здесь проблем нет
+
+systemctl status kubelet - в статусе инактив
+
+sudo systemctl start kubelet - включаем kubelet, и видимо что статус ноды моментально восстановился
