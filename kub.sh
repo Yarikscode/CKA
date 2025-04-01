@@ -28,15 +28,15 @@ sysctl --system
 # Установка зависимостей
 dnf install -y curl wget jq yum-utils device-mapper-persistent-data lvm2
 
-# Добавление рабочего репозитория Kubernetes (v1.30)
+# Добавление рабочего репозитория Kubernetes (v1.31)
 cat <<EOF > /etc/yum.repos.d/kubernetes.repo
 [kubernetes]
 name=Kubernetes
-baseurl=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/
 enabled=1
 gpgcheck=1
 repo_gpgcheck=1
-gpgkey=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/repodata/repomd.xml.key
 exclude=kubelet kubeadm kubectl cri-tools
 EOF
 
