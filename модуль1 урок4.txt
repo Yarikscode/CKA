@@ -1,0 +1,183 @@
+#Metrics Server
+
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml - установка
+
+kubectl -n kube-system get pods - сразу не запустит метрик сервер, нужна дополнительная конфигурация
+
+#Пример логов
+
+kubectl logs -n kube-system metrics-server-d5865ff47-4vtq2
+
+E0401 04:57:45.578557       1 scraper.go:149] "Failed to scrape node" err="Get \"https://192.168.31.125:10250/metrics/resource\": tls: failed to verify certificate: x509: cannot validate certificate for 192.168.31.125 because it doesn't contain any IP SANs" node="master"
+I0401 04:57:50.329455       1 server.go:191] "Failed probe" probe="metric-storage-ready" err="no metrics to serv
+
+kubectl edit -n kube-system deployments.apps metrics-server
+
+Добавить --kubelet-insecure-tls - позволяет обращаться к API без проверки сертификата
+
+kubectl -n kube-system get pods - проверяем что pod metrics server запустился
+
+kubectl top pods -A - теперь можем посмотреть потребляемые ресурсы подами
+
+#back up etcd
+
+sudo dnf install etcd-client - такого к сожалению нету(
+
+#Последняя версия вместе с сервером
+curl -L https://github.com/etcd-io/etcd/releases/download/v3.5.21/etcd-v3.5.21-linux-amd64.tar.gz -o etcd.tar.gz
+tar -xzf etcd.tar.gz
+sudo cp etcd-v3.5.21-linux-amd64/etcdctl /usr/local/bin/
+
+etcdctl --help - посмотреть варианты использования команды
+
+ps aux | grep etcd
+
+ls /etc/kubernetes/pki/etcd/ - сертификаты etcd
+
+sudo etcdctl --endpoints=192.168.31.108:2379 --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/server.crt --key /etc/kubernetes/pki/etcd/server.key get / --prefix --keys-only - получаем все ключи в базе и смотрим
+
+
+sudo etcdctl --endpoints=localhost:2379 --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/server.crt --key /etc/kubernetes/pki/etcd/server.key snapshot save /tmp/etcdbackup.db - делаем back up
+
+sudo etcdctl --write-out=table snapshot status /tmp/etcdbackup.db - проверяем back up
+
+#restore etcd
+
+Чтобы стопнуть все манифесты переместите их из папки etc/kubernetes/manifests в папку etc/kubernetes
+
+sudo crictl ps - посмотреть что контейнеры стопнулись
+
+
+kubectl get deploy - проверяем деплои
+
+kubectl create deploy before --image=nginx --replicas=3 - создаем деплой(после бэкапа)
+
+cd /etc/kubernetes/manifests/
+
+mv * ..
+
+sudo crictl ps
+
+sudo mv /var/lib/etcd /var/lib/etcd-old
+
+sudo etcdctl snapshot restore /tmp/etcdbackup.db --data-dir /var/lib/etcd - выполняем restore
+
+sudo mv ../*.yaml .
+
+sudo crictl ps
+
+#Cluster Master Upgrades
+
+Обновлять можно только на минорные версии, обновлять на мажорную сразу не выйдет
+
+Сперва обновить kubeadm
+
+Затем control node
+
+#Начинаем
+sudo vim /etc/yum.repos.d/kubernetes.repo - меняем значения версии на следующую минорную
+
+sudo dnf list --showduplicates kubeadm --disableexcludes=kubernetes - смотрим доступные версии
+
+sudo yum install -y kubeadm-'1.31.7' --disableexcludes=kubernetes - обновляем до 1.31.7
+
+sudo kubeadm version - смотрим версию kubeadm
+
+sudo kubeadm upgrade plan - план обновления кластера
+
+sudo kubeadm upgrade apply v1.31.7
+
+#Обновление Мастер
+kubectl drain master --ignore-daemonsets
+
+sudo yum install -y kubelet-'1.31.7' kubectl-'1.31.7' --disableexcludes=kubernetes
+
+sudo systemctl daemon-reload
+sudo systemctl restart kubelet
+
+kubectl uncordon master
+
+#Обновление Воркер
+
+sudo vim /etc/yum.repos.d/kubernetes.repo - обновляем репозиторий
+
+sudo yum install -y kubeadm-'1.31.7' --disableexcludes=Kubernetes - обновляем kubeadm
+
+sudo kubeadm upgrade node - обновляем ноды
+
+kubectl drain worker1 --ignore-daemonsets - дрейним
+
+sudo yum install -y kubelet-'1.31.7' kubectl-'1.31.7' --disableexcludes=kubernetes - обновляем
+
+sudo systemctl daemon-reload
+sudo systemctl restart kubelet
+
+kubectl uncordon - разрешаем запускать поды
+
+kubectl get nodes - проверяем
+
+#Understanig HA Options
+
+Требуется минимум 3 контрол ноды
+
+Балансировщики нагрузки
+
+nmcli connection modify ens160 \
+  ipv4.addresses 192.168.31.76/24 \
+  ipv4.gateway 192.168.31.1 \
+  ipv4.dns "8.8.8.8 8.8.4.4" \
+  ipv4.method manual
+
+#Запускаем скрипт setup-haproxy
+
+#Запускаем инит кластера
+sudo kubeadm init --control-plane-endpoint "192.168.31.100:6443" --upload-certs
+
+#Переносим конфиг админа в каталог нашего юзера
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+#Устанавливаем calico
+kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+
+
+#Присоединяем control
+sudo    kubeadm join 192.168.31.100:6443 --token 2fkly5.7yc1xao1bdmg0eaf \
+        --discovery-token-ca-cert-hash sha256:0cd8b0675f75d10acb1c23c7050af9ad96e6b38d39a267360ab057c0beee7237 \
+        --control-plane --certificate-key b3cec17f3a9e9862d8c29eb25d445b9da83d8087551de550899c065588a850ff
+
+#Присоединяем воркера
+kubeadm join 192.168.31.100:6443 --token 2fkly5.7yc1xao1bdmg0eaf \
+        --discovery-token-ca-cert-hash sha256:0cd8b0675f75d10acb1c23c7050af9ad96e6b38d39a267360ab057c0beee7237
+
+#Локальный troubleshoot не использовать
+sudo systemctl disable setroubleshootd
+sudo systemctl mask setroubleshootd
+
+# Команды которые помогут в решении
+#Локальный troubleshoot не использовать
+tcpdump -ni ens160 proto 112
+
+setsebool -P haproxy_connect_any=1
+
+Помог однозначно переход с multicast на unicast
+
+#Еще может быть firewalld
+sudo systemctl stop firewalld
+sudo systemctl disable firewalld
+sudo systemctl mask firewalld
+
+#ss -nltp | grep 2379
+
+#Результат
+
+yaroslav@master:~$ kubectl get nodes
+NAME      STATUS   ROLES           AGE   VERSION
+master    Ready    control-plane   23m   v1.31.7
+master2   Ready    control-plane   22m   v1.31.7
+master3   Ready    control-plane   22m   v1.31.7
+worker1   Ready    <none>          29s   v1.31.7
+worker2   Ready    <none>          16s   v1.31.7
+
+
+
