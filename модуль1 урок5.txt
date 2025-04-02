@@ -1,0 +1,142 @@
+#Урок5
+K8s:         
+
+CA return CRT key
+CRT key
+
+Client:
+
+CRT key signed by CA
+
+
+1)kubectl получает доступ к этому сертификату > Любое обращение идет к API server`у > API server получает команду и верифицирует твой сертификат
+
+2)Curl > kube-proxy > CRT key устанавливает secure connection с K8s
+
+#SecurityContext
+
+Определяет привилегии и доступ к настройкам пода или контейнеров
+
+UID and GID base
+
+SELinux
+
+Linux Capabilities
+
+AppArmor
+
+Seccomp
+
+The AllowPrivilegeEscalation setting
+
+The runAsNonRoot setting
+
+kubectl explain pod.spec.securityContext
+
+kubectl explain pod.spec.containers.securityConxtext
+
+#Demo
+kubectl apply -f security-context.yaml
+
+yaroslav@master:~/CKA/yamls$ kubectl exec -it security-context-demo -- sh
+~ $
+~ $ ps
+PID   USER     TIME  COMMAND
+    1 1000      0:00 sleep 3600
+    7 1000      0:00 sh
+   13 1000      0:00 ps
+
+#Configuring ServiceAccounts
+
+kubectl run mypod --image=alpine -- sleep 3600
+
+kubectl get pods mypod -o yaml
+
+kubectl get sa
+
+kubectl exec -it mypod -- sh
+
+apk add --update curl
+
+curl https://kubernetes/api/v1 --insecure
+
+TOKEN=$(cat /run/secrets/kubernetes.io/serviceaccount/token)
+
+curl -H "Authorization: Bearer $TOKEN" https://kubernetes/api/v1 --insecure
+
+curl -H "Authorization: Bearer $TOKEN" https://kubernetes/api/v1/namespaces/default/pods --insecure
+
+kubectl create sa mysa
+
+kubectl create role list-pods --resource=pods --verb=list
+
+kubectl create role -h | less - помощь с ролями
+
+kubectl create rolebinding list-pods --role=list-pods --serviceaccount=default:mysa
+
+kubectl apply -f mysapod.yaml
+
+kubectl exec -it mysapod -- sh
+
+#Cluster roles
+
+kubectl get clusterrole
+
+kubectl get clusterrolebindings
+
+kubectl create ns students
+
+kubectl create ns staff
+
+kubectl config get-contexts
+
+sudo useradd -m -G wheel -s /bin/bash anna
+
+su - anna
+
+openssl genrsa -out anna.key 2048 - закрытый ключ
+
+openssl req -new -key anna.key -out anna.csr -subj "/CN=anna/O=k8s" - запрос на выпуск серта с открытым ключом
+
+sudo openssl x509 -req -in anna.csr -CA /etc/kubernetes/pki/ca.crt - делаем выпуск
+
+sudo openssl x509 -req -in anna.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out anna.crt -days 1000 - делаем правильный выпуск
+
+mkdir .kube
+
+sudo cp -i /etc/kubernetes/controller-manager.conf .kube/config
+
+sudo chown -R anna:anna .kube/
+
+kubectl config set-credentials anna --client-certificate=anna.crt --client-key=anna.key - добавить пользователя
+
+kubectl config set-context anna-context --cluster=kubernetes --namespace=staff --user=anna - добавить контекст
+
+kubectl config use-context anna-context - сменить контекст
+
+kubectl get pods
+
+kubectl config get-contexts
+
+kubectl create role staff -n staff --verb=get,list,watch,create,update,delete,patch --resource=deployment,replicasets,pods - создаем роль
+
+kubectl create rolebinding -n staff staff-role-binding --user=anna --role=staff - роль binding
+
+kubectl create role viewers -n default --verb=list,get,watch --resource=deployments,replicasets,pods
+
+kubectl create rolebinding viewers --user=anna --role=viewers
+
+anna@master:/home/yaroslav/CKA/yamls$ kubectl get all -n default
+NAME                        READY   STATUS    RESTARTS      AGE
+pod/mypod                   1/1     Running   1 (32m ago)   92m
+pod/mysapod                 1/1     Running   1 (14m ago)   74m
+pod/security-context-demo   1/1     Running   1 (45m ago)   105m
+
+#little practice
+kubectl create role defaultpodviewer --verb=get,list,watch --resource=pod -n default
+
+kubectl get clusterrolebinding | grep basic-user
+
+kubectl get pods --a system:basic-user
+
+kubectl create rolebiding defaultpodviewer --role=defaultpodviewer --user=system:basic-user -n default
