@@ -1,0 +1,97 @@
+#Deployments
+
+kubectl create deploy mondeploy --image=nginx:1.17 --replicas=3
+
+kubectl get all --selector app=mondeploy
+
+kubectl scale deployment mondeploy --replicas=4
+
+kubectl set image deploy mondeploy nginx=nginx:latest
+
+#Deamonsets
+kubectl create deploy deamon --image=nginx --dry-run=client -o yaml > daemon.yaml
+
+kubectl apply -f daemon.yaml
+
+kubectl delete daemonset deamon
+
+#Statefullset
+
+1)Создаем локальный PV
+
+2)Создаем storage class
+
+3)Создаем statefullset манифест
+
+В нашем случае с репликой 1, так как я нарезал всего 1 PV
+
+Так как мы создали headless service то наш сервис доступен по DNS внутри кластера
+
+echo "<h1>Hello from web-0</h1>" > /mnt/data/nginx-0/index.html - добавляем в папку на воркере
+
+#Проверяем
+kubectl run testbox --rm -it --image=busybox -- sh
+
+wget -qO- web-0.nginx.default.svc.cluster.local
+
+#Init container
+
+yaroslav@master:~/CKA/yamls$ kubectl apply -f initcontainer.yaml
+pod/myapp-pod created
+yaroslav@master:~/CKA/yamls$ kubectl get pods
+NAME        READY   STATUS     RESTARTS   AGE
+myapp-pod   0/1     Init:0/2   0          11s
+
+#Scaling operations
+
+kubectl create deploy mondeploy --image=nginx:1.17 --replicas=3
+
+kubectl scale deploy mondeploy --replicas=1
+
+kubectl autoscale -h
+
+kubectl autoscale deployment mondeploy --min=3 --max=5
+
+yaroslav@master:~/CKA/yamls$ kubectl get hpa
+NAME        REFERENCE              TARGETS              MINPODS   MAXPODS   REPLICAS   AGE
+mondeploy   Deployment/mondeploy   cpu: <unknown>/80%   3         5         0          12s
+
+#Configure Autoscaling
+
+
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml - установка сервера метрик
+
+kubectl edit -n kube-system deployments.apps metrics-server
+
+- --kubelet-insecure-tls=true
+
+kubectl top pods -A
+
+kubectl create deploy webservices --image=nginx
+
+kubectl autoscale deployment webservices --min=2 --max=4 --cpu-percent=8
+
+kubectl get deploy webservices
+
+kubectl edit hpa webservices
+
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 30 - локальная настройка
+
+ sudo vim /etc/kubernetes/manifests/kube-controller-manager.yaml
+
+- --horizontal-pod-autoscaler-downscale-delay=45s - глобальная настройка
+
+#sidecar
+
+kubectl run test --image=busybox --dry-run=client -o yaml -- sh -c "echo hello > /tmp/mufil
+e"
+
+kubectl apply -f mysidecar.yaml
+
+yaroslav@master:~/CKA/yamls$ kubectl exec -it sidecar -c whatever -- cat /usr/lib/nginx/html/index.html
+hello
+
+
+
