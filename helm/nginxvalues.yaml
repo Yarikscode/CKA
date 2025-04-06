@@ -1,0 +1,2 @@
+commonLabels: "type: helmapp"
+replicaCount: 3
