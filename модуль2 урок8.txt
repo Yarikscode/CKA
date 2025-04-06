@@ -1,0 +1,129 @@
+#Scheduling process
+
+kubectl create > API server > etcd > scheduler > kubelet>CRI
+
+#Node preferences
+
+kubectl label nodes worker2 disktype=ssd
+
+kubectl get nodes --show-labels
+
+kubectl cordon worker2
+
+yaroslav@master:~/CKA/yamls$ kubectl get pods
+NAME    READY   STATUS    RESTARTS   AGE
+nginx   0/1     Pending   0          12s
+
+kubectl describe pod nginx
+
+kubectl uncordon worker2
+
+#Affinity
+
+kubectl cordon worker1
+
+kubectl apply -f pod-with-node-antiaffinity.yaml
+
+kubectl uncordon worker1
+
+kubectl apply -f redis-with-pod-affinity.yaml
+
+kubectl apply -f web-with-pod-affinity.yaml
+
+
+#Taint and Toleration
+
+kubectl get nodes
+
+kubectl taint nodes worker1 storage=ssd:NoSchedule
+
+kubectl describe nodes worker1
+
+Taints:             storage=ssd:NoSchedule
+
+kubectl create deploy nginx-taint --image=nginx --replicas=5
+
+kubectl get pods -o wide | grep nginx-ta
+
+kubectl apply -f taint-toleration.yaml
+
+kubectl get pods tolerator
+
+kubectl apply -f taint-toleration2.yaml
+
+kubectl taint nodes worker1 storage=ssd:NoSchedule-
+
+#requets and limits
+
+#Namespace Quota
+
+kubectl create ns limited
+
+kubectl create quota -h
+
+kubectl create quota qtest --hard pods=3,cpu=100m,memory=500Mi -n limited
+
+kubectl describe ns limited
+
+kubectl create deploy nginx --image=nginx --replicas=3 -n limited
+
+kubectl get all -n limited
+
+kubectl describe -n limited rs nginx nginx-676b6c5bbc
+
+kubectl set resources -h
+
+kubectl set resources deploy nginx --requests cpu=100m,memory=5Mi --limits cpu=200m,memory=20Mi -n limited
+
+kubectl get all -n limited
+
+kubectl describe ns limited
+Name:         limited
+Labels:       kubernetes.io/metadata.name=limited
+Annotations:  <none>
+Status:       Active
+
+Resource Quotas
+  Name:     qtest
+  Resource  Used  Hard
+  --------  ---   ---
+  cpu       100m  100m
+  memory    5Mi   500Mi
+  pods      1     3
+
+kubectl get quota -n limited
+
+kubectl scale -n limited deployment nginx --replicas=4
+
+kubectl scale -n limited deployment nginx --replicas=3
+
+#LimitRange
+
+kubectl explain limitrange.spec
+
+kubectl explain limitrange.spec.limits
+
+kubectl apply -f limitrange.yaml -n limitrange
+
+kubectl run limitpod -n limitrange --image=nginx
+
+kubectl describe pod limitpod -n limitrange
+
+#Pod priorities
+
+kubectl create priorityclass high-priority --value=1000 --description="high prioryty" --preemption-policy="Never"
+
+kubectl create priorityclass mid-priority --value=125 --description="mid prioryty" --global-default=true
+
+kubectl run testpod --image=nginx
+
+kubectl get pods testpod -o yaml | grep -B2 -i priorityclass
+
+kubectl create deploy highprio --image=nginx
+
+kubectl edit deploy highprio
+
+kubectl get pods highprio-5d4594bfdb-v78v7 -o yaml | grep -B2 -i priorityclass
+  preemptionPolicy: Never
+  priority: 1000
+  priorityClassName: high-priority

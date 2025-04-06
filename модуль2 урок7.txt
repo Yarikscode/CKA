@@ -1,0 +1,92 @@
+#HELM
+
+установить через make
+
+$ git clone https://github.com/helm/helm.git
+$ cd helm
+$ make
+
+Обновляем до последнего релиза
+
+wget https://get.helm.sh/helm-v3.17.2-linux-amd64.tar.gz
+tar -xzvf helm-v3.17.2-linux-amd64.tar.gz
+sudo mv linux-amd64/helm /usr/local/bin/helm
+
+
+Искать чарты тут  https://artifacthub.io/packages/search?repo=bitnami
+helm install my-release oci://registry-1.docker.io/bitnamicharts/nginx
+
+helm install my-sql oci://registry-1.docker.io/bitnamicharts/mysql
+
+helm list
+
+helm status my-sql
+
+helm uninstall my-sql oci://registry-1.docker.io/bitnamicharts/mysql
+
+`Не будет работать пока не сделать PV для mysql`
+
+helm repo add argo https://argoproj.github.io/argo-helm
+
+helm repo update
+
+helm search repo argo/argo-cd
+
+helm template my-argo-cd argo/argo-cd --version 7.8.23 > argo-cd-template.yaml
+
+helm show values argo/argo-cd > values.yaml #меняем сервис на nodeport
+
+helm template my-argo-cd argo/argo-cd -f values.yaml > argo-cd-template.yaml
+
+kubectl apply -f argo-cd-template.yaml
+
+kubectl delete -f argo-cd-template.yaml
+
+#Managing application
+
+helm show values oci://registry-1.docker.io/bitnamicharts/nginx
+
+helm install oci://registry-1.docker.io/bitnamicharts/nginx --generate-name --values nginxvalues.yaml
+
+helm list
+
+helm get values nginx-1743837886
+
+kubectl get all
+
+ helm delete nginx-1743837886
+
+#Kustomize
+
+kustomize файлы позволяют обновлять сразу несколько ресурсов
+
+yaroslav@master2:~/CKA/helm$ cat kustomization.yaml
+resources:
+  - deployment.yaml
+  - service.yaml
+namePrefix: test-
+commonLabels:
+  environment: testing
+
+kubectl apply -k .
+
+kubectl get deploy --show-labels
+
+kubectl delete -k .
+
+#Hashicorp Vault
+
+поднимаем впн
+
+helm repo add hashicorp https://helm.releases.hashicorp.com
+
+helm install vault hashicorp/vault
+
+helm status vault
+
+kubectl get pods
+
+helm uninstall vault
+
+не запустится, потому что нужен PV
+
