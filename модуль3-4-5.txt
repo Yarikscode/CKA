@@ -1,0 +1,454 @@
+#Kub net
+
+
+0
+| => physical network (nodes) => api server(cluster) => svc(cluster ip) => pod network(plugin)
+/\
+
+По порту
+0
+| <=> physical network (nodes)<=> api server(cluster) <=> svc(node port 32000+) <=> pod network(plugin)
+/\
+По портам
+0
+| <=> physical network (nodes) <=>load balancer<=> api server(cluster) <=> svc(node port 32000+) <=> pod network(plugin)
+/\
+
+По http/https
+0
+| <=> physical network (nodes) <=>ingress<=> api server(cluster) <=> svc(cluster ip) <=> pod network(plugin)
+/\
+
+#Network plugins
+
+kubectl get crd - custom resource definition
+
+kubectl get ippools -A -o yaml
+
+kubectl get pod -o wide -n kube-system
+
+ps aux | grep service-cluster-ip-range
+
+#services
+
+ClusterIP - in
+
+NodePort - out
+
+LoadBalancer - cloud providers, based on clusterip or nodeport
+
+ExternalName - DNS out
+
+kubectl create deploy webshop --image=nginx --replicas=3
+
+kubectl get pods --selector app=webshop
+
+kubectl get pods --selector app=webshop -o wide
+
+kubectl expose deploy webshop --type=NodePort --port=80 - создаем сервис nodeport
+
+kubectl describe svc webshop
+
+curl 192.168.31.125:30464
+
+curl 192.168.31.100:30464 - проверка HA cluster
+
+#Running ingress
+
+helm upgrade --install ingress-nginx ingress-nginx --repo https://kubernetes.github.io/ingress-nginx --namespace ingress-nginx --create-namespace
+
+kubectl get pods -n ingress-nginx
+
+kubectl create deploy nginxsvc --image=nginx --port=80
+
+kubectl expose deploy nginxsvc --port=80
+
+kubectl describe svc nginx
+
+kubectl create ing -h
+
+kubectl create ing nginxsvc --class=nginx --rule=nginxsvc.info/*=nginxsvc:80
+
+sudo vim /etc/hosts nginxsvc.info
+
+kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8080:80
+
+ping nginxsvc.info
+
+curl nginxsvc.info:8080
+
+nginxsvc.info => DNS => ingress svc => ingress pod => ingress rules => svc => ...
+
+#Conf ingress
+
+kubectl get ingressclass -o yaml
+
+kubectl get deploy
+
+kubectl create ing webshop-ingress --rule="webshop.info/a=webshop:80" --rule="webshop.info/hello=newdep:8080"
+
+sudo vim /etc/hosts webshop.info
+
+kubectl get ingress
+
+kubectl describe ingress webshop-ingress
+
+kubectl create deploy newdep --image=gcr.io/google-samples/hello-app:2.0
+
+kubectl expose deploy newdep --port=8080
+
+kubectl describe ingress webshop-ingress
+
+#port forward
+
+#Gateway API
+
+helm delete ingress-nginx -n ingress-nginx
+
+0								gtw<= ParentRefs <= httproute									    	
+| => DNS => gw api controller => pod => gc(gateway controller) => gateway => httproute => BackendReff => K8s svc
+/\						            gc <= gatewayclass
+
+#NoTls
+kubectl kustomize "https://github.com/nginx/nginx-gateway-fabric/config/crd/gateway-api/standard?ref=v1.6.2" | kubectl apply -f -
+
+helm install ngf oci://ghcr.io/nginx/charts/nginx-gateway-fabric --create-namespace -n nginx-gateway
+
+kubectl get all -n nginx-gateway
+
+kubectl get gc
+
+kubectl edit -n nginx-gateway svc ngf-nginx-gateway-fabric - меняем на нодепорт и порты 32080 и 32443
+
+kubectl get all -n nginx-gateway
+
+kubectl create deploy nginxgw --image=nginx --replicas=3
+
+kubectl expose deploy nginxgw --port=80
+
+kubectl -n nginx-gateway port-forward pod/ngf-nginx-gateway-fabric-6846dfdfb-j6ns6 8080:80 8443:443
+
+curl whatever.com:8080
+
+#TLS
+
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt -subj "/CN=whateve
+r.com"
+
+kubectl create secret tls gateway-tls --cert=tls.crt --key=tls.key
+
+kubectl apply -f tls-gateway.yaml
+
+kubectl apply -f https-routing.yaml
+
+sudo dnf install socat
+
+sudo socat TCP-LISTEN:443,fork TCP4:127.0.0.1:32443 &
+
+sudo socat TCP-LISTEN:80,fork TCP4:127.0.0.1:32080 &
+
+curl -k https://whatever.com
+
+
+https://whatever.com => 443:32443 => NodePort Gateway controller service => controller pod => gatewayclass => Gateway => httproute => svc:ngnxgw => deployment => pods
+
+kubectl get svc -n nginx-gateway
+
+
+#networking
+
+/etc/cni/net.d - configure
+
+https://github.com/containernetworking/cni - docs
+
+kubectl get pods -n kube-system
+
+ kubectl get ippool -A
+
+kubectl get ippool -o yaml -A
+
+#Auto reg and DNS
+
+kubectl get cm -n kube-system coredns -o yaml
+
+kubectl run webserver --image nginx
+
+kubectl expose pod webserver --port=80
+
+kubectl run testpod --image=busybox -- sleep 3600
+
+kubectl run testpod2 --image=busybox -- sleep 3600
+
+kubectl exec -it testpod2 -- wget webserver
+
+kubectl exec -it testpod2 -- wget --spider webserver
+
+kubectl create ns remote
+
+kubectl run interginx --image=nginx
+
+kubectl run remotebox --image=busybox -n remote -- sleep 3600
+
+kubectl expose pod interginx --port=80
+
+kubectl exec -it remotebox -n remote -- cat /etc/resolv.conf
+kubectl exec -it remotebox -n remote -- nslookup interginx.default.svc.cluster.local
+
+#Policy
+kubectl apply -f nwpolicy-complete-example.yaml
+
+kubectl run pod nginx --image=nginx
+
+kubectl exec -it nginx -- sh
+
+cd /proc
+
+cd 1
+
+# cat 1/cmdline
+nginx: master process nginx -g daemon off;#
+
+
+kubectl expose pod nginx --port=80
+
+kubectl exec -it busybox -- wget --spider --timeout=1 nginx
+
+kubectl label pod busybox access=true
+
+kubectl exec -it busybox -- wget --spider --timeout=1 ngin
+
+#policy between namespace
+
+kubectl create nwp-namespace
+
+kubectl apply -f nwp-lab10.yaml
+
+kubectl expose pod nwp-nginx --port=80
+
+kubectl exec -it nwp-busybox -n nwp-namespace -- wget --spider --timeout=1 nwp-nginx
+wget: bad address 'nwp-nginx'
+
+kubectl exec -it nwp-busybox -n nwp-namespace -- wget --spider --timeout=1 nwp-nginx.default.svc.cluster.local
+Connecting to nwp-nginx.default.svc.cluster.local (10.109.129.228:80)
+remote file exists
+
+kubectl apply -f nwplab102.yaml
+
+kubectl exec -it nwp-busybox -n nwp-namespace -- wget --spider --timeout=1 nwp-nginx.default.svc.cluster.local
+Connecting to nwp-nginx.default.svc.cluster.local (10.109.129.228:80)
+wget: download timed out
+command terminated with exit code 1
+
+#ManageDNS
+kubectl edit configmap coredns -n kube-system
+
+#Managing storage
+
+POD:
+1)Containers
+2)Volumes
+
+PVC:
+1)size
+2)type
+
+
+Storageclass <=> Provisoner
+
+
+PVC => storageclass => PV
+
+#Volume
+
+kubectl apply -f morevolumes.yaml
+
+kubectl describe pod morevol
+
+kubectl exec -it morevol -c centos1 -- touch /centos1/lunchbreak
+
+kubectl exec -it morevol -c centos2 -- ls /centos2
+lunchbreak
+
+#PV
+
+kubectl apply -f vm.yaml
+
+#PVC
+
+kubectl apply -f pvc.yaml
+
+kubectl get pv,pvc
+
+#Storage class
+
+kubectl apply -f pv-pod.yaml
+
+kubectl exec -it pv-pod -- touch /usr/share/nginx/html/hellofile
+
+kubectl describe pv pv-volume
+
+ls -l /mydata/
+total 0
+-rw-r--r--. 1 root root 0 Apr  6 21:46 hellofile
+
+#Reclaimpolicy
+
+Retain
+
+Delete
+
+#Configmap and secret
+
+kubectl create cm webindex --from-file=index.html
+
+kubectl describe cm webindex
+
+kubectl edit cm webindex
+
+kubectl create deploy sebserver --image=nginx
+
+kubectl edit deploy sebserver
+
+kubectl exec -it sebserver-d6dd49d8b-vwrdr -- ls /usr/share/nginx/html
+
+
+#Auto provisioner
+
+скачиваем на артифакт хаб
+
+#NFS storage provisioner
+
+sudo dnf install nfs-utils - на контрол и на воркере
+
+sudo mkdir -p /nfsexport
+
+sudo sh -c 'echo "/nfsexport *(rw,no_root_squash)" > /etc/exports'
+
+sudo systemctl restart nfs-server
+
+yaroslav@worker1:~$ showmount -e 192.168.31.125
+Export list for 192.168.31.125:
+/nfsexport *
+
+helm repo add nfs-subdir-external-provisioner https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner
+
+helm install my-nfs-subdir-external-provisioner nfs-subdir-external-provisioner/nfs-subdir-external-provisioner --version 4.0.18 --set nfs.server=192.168.31.125 --set nfs.path=/nfsexport
+
+kubectl get pods
+
+kubectl get sc
+
+kubectl describe sc nfs-client
+
+kubectl apply -f nfs-test.yaml
+
+kubectl get pvc
+
+kubectl get pv
+
+#Monitoring Kuber
+
+use kubectl describe and kubectl events
+
+kubectl exec -it nginx -- sh
+
+ls /proc
+
+cd /proc
+
+cat 1/cmdline
+
+cat 1/status
+
+#flow
+
+kubectl create => etcd => scheduler (kubectl describe or events) => kubelet => cri => container started => check container stack (crictl inspect, kubectl logs)
+
+#troubleshoot applications
+
+start with kubectl get
+
+-pending
+
+-running
+
+-succeeded
+
+-failed
+
+-unknown
+
+-completed
+
+-crashloopbackoff
+
+
+kubectl describe
+
+kubectl logs
+
+#troubleshoot nodes
+
+kubectl cluster-info
+
+kubectl cluster-info dump
+
+kubectl get nodes
+
+kubectl get pods -n kube-system
+
+kubectl describe node nodename
+
+sudo systemctl status kubelet
+
+sudo systemctl restart kubelet
+
+sudo openssl x509 -in /var/lib/kubelet/pki/kubelet.crt -text - посмотреть что серты валидны
+
+kubectl get pods -n kube-system
+
+dd if=/dev/zero of=bigfile bs=1M
+
+sudo dd if=/dev/zero of=bigrootfile bs=1M
+
+kubectl get nodes
+
+kubectl describe node worker1 | less - здесь будет disk pressure
+
+kubectl rm -f big*
+
+автоматически taint не уберется, поэтому убираем вручную
+
+sudo systemctl stop kubelet
+
+sudo systemctl start kubelet - после перезагрузки проблема решится
+
+#Fix application problems
+
+kubectl get ing
+
+curl myapp.ip
+
+ping myapp.ip
+
+sudo vim /etc/hosts
+
+ping myapp.ip
+
+kubectl describe ing myapp
+
+curl 10.103.60.138
+
+kubectl get pods -n kube-system
+
+kubectl get ns
+
+kubectl get all -n ingress-nginx
+
+
+
+
+
+
+
+

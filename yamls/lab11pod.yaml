@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: task-pv-pod
+spec:
+  volumes:
+    - name: task-pv-storage
+      persistentVolumeClaim:
+        claimName: task-pv-claim
+  initContainers:
+    - name: init-html
+      image: busybox
+      command: [ "sh", "-c" ]
+      args:
+        - |
+          mkdir -p /usr/share/nginx/html && \
+          echo '<p>hello world</p>' > /usr/share/nginx/html/index.html
+      volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: task-pv-storage
+  containers:
+    - name: task-pv-container
+      image: nginx
+      ports:
+        - containerPort: 80
+          name: "http-server"
+      volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: task-pv-storage
+
