@@ -12,22 +12,6 @@ echo "🚀 НАСТРОЙКА KUBERNETES НА CENTOS STREAM 10"
 swapoff -a
 sed -i '/swap/d' /etc/fstab
 
-# Загружаем модуль ядра
-modprobe br_netfilter
-
-# Настройка sysctl
-cat <<EOF | tee /etc/sysctl.d/k8s.conf
-net.bridge.bridge-nf-call-ip6tables = 1
-net.bridge.bridge-nf-call-iptables  = 1
-net.ipv4.ip_forward                 = 1
-net.ipv6.conf.all.forwarding        = 1
-EOF
-
-sysctl --system
-
-# Установка зависимостей
-dnf install -y curl wget jq yum-utils device-mapper-persistent-data lvm2
-
 # Добавление рабочего репозитория Kubernetes (v1.31)
 cat <<EOF > /etc/yum.repos.d/kubernetes.repo
 [kubernetes]
