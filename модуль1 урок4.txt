@@ -131,7 +131,7 @@ nmcli connection modify ens160 \
 #Запускаем скрипт setup-haproxy
 
 #Запускаем инит кластера
-sudo kubeadm init --control-plane-endpoint "192.168.31.100:6443" --upload-certs
+sudo kubeadm init --control-plane-endpoint "192.168.31.100:8443" --upload-certs
 
 #Переносим конфиг админа в каталог нашего юзера
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
@@ -142,12 +142,12 @@ kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
 
 
 #Присоединяем control
-sudo    kubeadm join 192.168.31.100:6443 --token 2fkly5.7yc1xao1bdmg0eaf \
+sudo    kubeadm join 192.168.31.100:8443 --token 2fkly5.7yc1xao1bdmg0eaf \
         --discovery-token-ca-cert-hash sha256:0cd8b0675f75d10acb1c23c7050af9ad96e6b38d39a267360ab057c0beee7237 \
         --control-plane --certificate-key b3cec17f3a9e9862d8c29eb25d445b9da83d8087551de550899c065588a850ff
 
 #Присоединяем воркера
-kubeadm join 192.168.31.100:6443 --token 2fkly5.7yc1xao1bdmg0eaf \
+kubeadm join 192.168.31.100:8443 --token 2fkly5.7yc1xao1bdmg0eaf \
         --discovery-token-ca-cert-hash sha256:0cd8b0675f75d10acb1c23c7050af9ad96e6b38d39a267360ab057c0beee7237
 
 #Локальный troubleshoot не использовать
