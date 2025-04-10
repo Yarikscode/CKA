@@ -40,7 +40,7 @@ systemctl enable --now kubelet
 # Пометка завершения
 touch /tmp/k8s_installed
 
-echo "✅ Kubernetes установлен (v1.30)"
+echo "✅ Kubernetes установлен (v1.31)"
 echo
 echo "➡️ На управляющем узле запусти:"
 echo "   sudo kubeadm init --pod-network-cidr=192.168.0.0/16"
