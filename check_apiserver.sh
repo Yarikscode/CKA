@@ -1,7 +1,7 @@
 #!/bin/bash
 
 APISERVER_VIP=192.168.31.100
-APISERVER_DEST_PORT=6443
+APISERVER_DEST_PORT=8443
 
 errorExit() {
         echo "* * * $*" 1>&2
